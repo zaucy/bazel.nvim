@@ -58,7 +58,7 @@ function M.get_target_list(callback)
 			table.insert(targets, target)
 		end,
 		on_exit = function(_)
-			callback(targets)
+			vim.schedule(function() callback(targets) end)
 		end,
 	}
 

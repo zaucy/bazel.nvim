@@ -1,8 +1,4 @@
-local pickers = require "telescope.pickers"
-local finders = require "telescope.finders"
-local conf = require("telescope.config").values
 local Job = require 'plenary.job'
-local a = require 'plenary.async'
 
 local toggleterm = require("toggleterm")
 

@@ -20,6 +20,37 @@ local function parse_label_kind_str(label_kind_str)
 	return target
 end
 
+local DEFAULT_OPTS = {
+	format_on_save = true,
+}
+
+function M.setup(opt)
+	opt = opt or {}
+	opt = vim.tbl_deep_extend("keep", opt, DEFAULT_OPTS)
+
+	if opt.format_on_save then
+		vim.api.nvim_create_autocmd("BufWritePre", {
+			group = vim.api.nvim_create_augroup("BazelBufWritePre", { clear = true }),
+			pattern = { "*.bazel", "*.bzl", "WORKSPACE", "BUILD" },
+			callback = function(data)
+				local cursor_pos = vim.api.nvim_win_get_cursor(0)
+				local output = vim.fn.systemlist("buildifier", data.buf)
+
+				if vim.v.shell_error == 0 then
+					vim.api.nvim_buf_set_lines(data.buf, 0, -1, false, output)
+				else
+					for _, line in ipairs(output) do
+						print(line)
+					end
+				end
+
+				vim.api.nvim_win_set_cursor(0, cursor_pos)
+			end,
+		})
+	end
+
+end
+
 function M.get_target_list(callback)
 	local targets = {}
 

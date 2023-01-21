@@ -175,6 +175,122 @@ function M.source_target_run(source_file)
 	)
 end
 
+function M.info(keys, callback)
+	keys = keys or {}
+
+	local info_table = {}
+
+	local args = { "info" }
+
+	for _, key in ipairs(keys) do
+		table.insert(args, key)
+	end
+
+	local job = Job:new {
+		command = "bazel",
+		args = args,
+		on_stdout = function(_, data)
+			if #keys == 1 then
+				info_table[keys[1]] = data
+			else
+				local key_end = data:find(":")
+				info_table[data:sub(0, key_end - 1)] = data:sub(key_end + 2)
+			end
+		end,
+		on_exit = function(_)
+			vim.schedule(function() callback(info_table) end)
+		end,
+	}
+
+	if callback == nil then
+		return job:sync()
+	end
+
+	job:start()
+end
+
+function M.target_executable_path(label, callback)
+	-- bazel cquery --output=starlark --starlark:expr=target.files_to_run.executable.path //foo
+	local p = ""
+	local job = Job:new {
+		command = "bazel",
+		args = {
+			"cquery",
+			"--output=starlark",
+			"--starlark:expr=target.files_to_run.executable.path",
+			label,
+		},
+		on_stdout = function(_, data)
+			p = p .. data
+		end,
+		on_exit = function(_)
+			vim.schedule(function() callback(p) end)
+		end,
+	}
+
+	if callback == nil then
+		return job:sync()
+	end
+
+	job:start()
+end
+
+local _dap_configs = {
+	["lldb-vscode"] = function(bazel_info, label, target_exec_path)
+		return {
+			name = label,
+			type = "lldb-vscode",
+			request = "launch",
+			program = vim.fs.normalize(
+				bazel_info.execution_root .. '/' .. target_exec_path
+			),
+			sourceMap = {
+				{ bazel_info.execution_root, bazel_info.workspace },
+			},
+			debuggerRoot = bazel_info.execution_root,
+			runInTerminal = true,
+			stopOnEntry = false,
+			args = {},
+			env = function()
+				local variables = {}
+				for k, v in pairs(vim.fn.environ()) do
+					table.insert(variables, string.format("%s=%s", k, v))
+				end
+				return variables
+			end,
+		}
+	end,
+	["lldb"] = function(bazel_info, label, target_exec_path)
+		return {
+			name = label,
+			type = "lldb",
+			request = "launch",
+			program = vim.fs.normalize(
+				bazel_info.execution_root .. '/' .. target_exec_path
+			),
+			sourceMap = {
+				[bazel_info.execution_root] = bazel_info.workspace,
+				['.'] = bazel_info.workspace,
+			},
+			runInTerminal = true,
+			stopOnEntry = false,
+		}
+	end,
+}
+
+function M.generate_dap_config(dap_type, label, callback)
+	M.info({ "execution_root", "workspace" }, function(info)
+		M.target_executable_path(label, function(target_exec_path)
+			local dap_config_fn = _dap_configs[dap_type]
+			if dap_config_fn == nil then
+				callback(nil)
+			else
+				callback(dap_config_fn(info, label, target_exec_path))
+			end
+		end)
+	end)
+end
+
 local function bazel_build_command()
 	M.select_target(nil, function(target)
 		if target ~= nil then
@@ -203,9 +319,30 @@ local function bazel_source_target_run_command()
 	M.source_target_run()
 end
 
+local function bazel_debug_launch_command(opts)
+	local adapter_name = opts.args
+	if not adapter_name then
+		adapter_name = "lldb"
+	end
+	M.select_target(nil, function(target)
+		if target == nil then
+			return
+		end
+
+		M.generate_dap_config(adapter_name, target.label, function(config)
+			if config == nil then
+				print("Unsupported adapter:", adapter_name)
+				return
+			end
+			require('dap').run(config)
+		end)
+	end)
+end
+
 vim.api.nvim_create_user_command("BazelBuild", bazel_build_command, {})
 vim.api.nvim_create_user_command("BazelRun", bazel_run_command, {})
 vim.api.nvim_create_user_command("BazelTest", bazel_test_command, {})
+vim.api.nvim_create_user_command("BazelDebugLaunch", bazel_debug_launch_command, { nargs = '?' })
 vim.api.nvim_create_user_command("BazelSourceTargetRun", bazel_source_target_run_command, {});
 
 return M

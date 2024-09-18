@@ -15,12 +15,10 @@ vim.filetype.add({
 	},
 })
 
-local command = require("bazel.command")
-
-vim.api.nvim_create_user_command("BazelBuild", command.bazel_build, {})
-vim.api.nvim_create_user_command("BazelRun", command.bazel_run, {})
-vim.api.nvim_create_user_command("BazelTest", command.bazel_test, {})
-vim.api.nvim_create_user_command("BazelDebugLaunch", command.bazel_debug_launch, { nargs = "?" })
-vim.api.nvim_create_user_command("BazelSourceTargetRun", command.bazel_source_target_run, {})
-vim.api.nvim_create_user_command("BazelGotoLabel", command.bazel_goto_label, { nargs = "?" })
-vim.api.nvim_create_user_command("BazelGotoSourceTarget", command.bazel_goto_source_target, {})
+vim.api.nvim_create_user_command("BazelBuild", function() require("bazel.command").bazel_build() end, {})
+vim.api.nvim_create_user_command("BazelRun", function() require("bazel.command").bazel_run() end, {})
+vim.api.nvim_create_user_command("BazelTest", function() require("bazel.command").bazel_test() end, {})
+vim.api.nvim_create_user_command("BazelDebugLaunch", function() require("bazel.command").bazel_debug_launch() end, { nargs = "?" })
+vim.api.nvim_create_user_command("BazelSourceTargetRun", function() require("bazel.command").bazel_source_target_run() end, {})
+vim.api.nvim_create_user_command("BazelGotoLabel", function() require("bazel.command").bazel_goto_label() end, { nargs = "?" })
+vim.api.nvim_create_user_command("BazelGotoSourceTarget", function() require("bazel.command").bazel_goto_source_target() end, {})
